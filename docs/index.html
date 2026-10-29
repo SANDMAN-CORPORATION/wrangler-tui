@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>wrangler-tui — Deploy Cloudflare Workers from your phone</title>
+<meta name="description" content="A terminal UI for Cloudflare Workers deployment on Termux + PRoot. No flags to memorize. No device codes to copy.">
+<meta name="theme-color" content="#0a0a0a">
+<meta property="og:title" content="wrangler-tui">
+<meta property="og:description" content="Deploy Cloudflare Workers from Termux + PRoot on Android. MIT licensed.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+<style>
+:root{--bg:#0a0a0a;--bg-elev:#111;--bg-code:#161616;--text:#e6e6e6;--text-dim:#999;--border:#2a2a2a;--accent:#f38020;--accent-dim:#c96a1a;--red:#f85149;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:0.9em;background:var(--bg-code);padding:2px 6px;border-radius:3px}
+.wrap{max-width:900px;margin:0 auto;padding:0 24px}
+.hero{padding:80px 0 60px;text-align:center;border-bottom:1px solid var(--border)}
+.hero h1{font-family:var(--mono);font-size:clamp(2rem,6vw,3.5rem);font-weight:700;letter-spacing:-0.02em;margin-bottom:16px}
+.hero h1 .accent{color:var(--accent)}
+.hero .tagline{font-size:clamp(1rem,2.5vw,1.25rem);color:var(--text-dim);margin:0 auto 32px;max-width:600px}
+.badges{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-bottom:40px}
+.badge{display:inline-block;padding:4px 12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:6px;font-family:var(--mono);font-size:0.8rem;color:var(--text-dim)}
+.ctas{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-block;padding:12px 24px;border-radius:8px;font-family:var(--mono);font-size:0.95rem;font-weight:600;border:1px solid var(--border);transition:all .15s;text-align:center}
+.btn-primary{background:var(--accent);color:#000;border-color:var(--accent)}
+.btn-primary:hover{background:var(--accent-dim);border-color:var(--accent-dim);text-decoration:none}
+.btn-ghost{background:transparent;color:var(--text)}
+.btn-ghost:hover{background:var(--bg-elev);text-decoration:none}
+.section{padding:60px 0;border-bottom:1px solid var(--border)}
+.section h2{font-family:var(--mono);font-size:0.9rem;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
+.section h3{font-size:clamp(1.5rem,4vw,2rem);font-weight:700;margin-bottom:20px;letter-spacing:-.01em}
+.section>p{color:var(--text-dim);margin-bottom:16px;max-width:700px}
+.grid{display:grid;gap:16px;margin-top:32px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.card{padding:24px;background:var(--bg-elev);border:1px solid var(--border);border-radius:8px}
+.card .icon{font-family:var(--mono);color:var(--red);font-size:1.2rem;margin-bottom:8px}
+.card .name{font-family:var(--mono);color:var(--accent);font-size:0.85rem;margin-bottom:8px}
+.card h4{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.card p{font-size:0.9rem;color:var(--text-dim);margin:0}
+.code{background:var(--bg-code);border:1px solid var(--border);border-radius:8px;padding:20px;margin:20px 0;overflow-x:auto;font-family:var(--mono);font-size:0.9rem;line-height:1.8;color:var(--text);white-space:pre}
+.code .prompt{color:var(--accent);user-select:none}
+.code .comment{color:var(--text-dim)}
+.arch{display:flex;flex-direction:column;align-items:center;gap:8px;margin:32px 0;font-family:var(--mono);font-size:0.9rem}
+.arch-node{padding:12px 24px;background:var(--bg-elev);border:1px solid var(--border);border-radius:6px;text-align:center;min-width:260px;line-height:1.5}
+.arch-node .label{color:var(--text-dim);font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+.arch-node small{color:var(--text-dim);font-size:0.75rem}
+.arch-arrow{color:var(--accent);font-size:1.2rem;line-height:1}
+.limitations{display:grid;gap:12px;margin-top:24px}
+.limitation{padding:16px 20px;background:var(--bg-elev);border-left:3px solid var(--red);border-radius:4px;font-size:0.95rem}
+.limitation strong{color:var(--text);display:block;margin-bottom:4px}
+.limitation span{color:var(--text-dim)}
+.support-cta{text-align:center;padding:32px 0 16px}
+.support-cta .btn{padding:16px 32px;font-size:1rem}
+.note{text-align:center;font-size:0.9rem;color:var(--text-dim);max-width:600px;margin:8px auto}
+footer{padding:40px 0;text-align:center;color:var(--text-dim);font-size:0.85rem;border-top:1px solid var(--border)}
+footer a{color:var(--text-dim);margin:0 12px}
+footer a:hover{color:var(--accent)}
+footer .sig{margin-top:16px;font-family:var(--mono);font-size:0.8rem}
+@media(max-width:600px){.hero{padding:48px 0 40px}.section{padding:40px 0}.arch-node{min-width:auto;width:100%;padding:10px 14px;font-size:0.8rem}}
+</style>
+</head>
+<body>
+
+<section class="hero">
+<div class="wrap">
+<h1>wrangler<span class="accent">-tui</span></h1>
+<p class="tagline">Deploy Cloudflare Workers from your phone.<br>No flags to memorize. No device codes to copy.</p>
+<div class="badges">
+<span class="badge">MIT License</span>
+<span class="badge">104 tests passing</span>
+<span class="badge">Node ≥ 22</span>
+<span class="badge">Termux + PRoot</span>
+</div>
+<div class="ctas">
+<a class="btn btn-primary" href="#install">Get Started</a>
+<a class="btn btn-ghost" href="https://github.com/SANDMAN-CORPORATION/wrangler-tui">GitHub</a>
+<a class="btn btn-ghost" href="https://razorpay.me/@zsar">Support</a>
+</div>
+</div>
+</section>
+
+<section class="section">
+<div class="wrap">
+<h2>The Problem</h2>
+<h3>Cloudflare's CLI assumes a desktop</h3>
+<p>Wrangler is excellent — on a laptop. On an Android phone running Termux, its assumptions break one by one.</p>
+<div class="grid">
+<div class="card">
+<div class="icon">✗</div>
+<h4>OAuth callbacks fail</h4>
+<p><code>wrangler login</code> tries to reach <code>localhost:8976</code> — unreachable inside PRoot. You end up copying device codes by hand.</p>
+</div>
+<div class="card">
+<div class="icon">✗</div>
+<h4>11–18 seconds per command</h4>
+<p>Every Wrangler invocation spawns Node afresh through PRoot's syscall translation. Re-authentication alone costs 25 seconds.</p>
+</div>
+<div class="card">
+<div class="icon">✗</div>
+<h4>Invisible deployment target</h4>
+<p>Deploy has no visible account, worker, or environment. One wrong command and you have shipped to production.</p>
+</div>
+<div class="card">
+<div class="icon">✗</div>
+<h4>Termux ↔ PRoot friction</h4>
+<p>Every command needs <code>proot-distro login debian</code>. State lives in two places. Nothing carries across boundaries.</p>
+</div>
+</div>
+</div>
+</section>
+
+<section class="section">
+<div class="wrap">
+<h2>What It Does</h2>
+<h3>Six commands. All of Cloudflare deployment.</h3>
+<div class="grid">
+<div class="card">
+<div class="name">$ wrangler-tui auth</div>
+<p>Opens your browser via Termux, pre-fills the device code, waits for approval, caches the result for 5 minutes.</p>
+</div>
+<div class="card">
+<div class="name">$ wrangler-tui init</div>
+<p>Create a new Worker project — minimal offline scaffold or the official <code>create-cloudflare</code> template.</p>
+</div>
+<div class="card">
+<div class="name">$ wrangler-tui deploy</div>
+<p>Preflight dry-run, visible deployment target, typed worker name confirmation, then live deploy. Exit code is the source of truth.</p>
+</div>
+<div class="card">
+<div class="name">$ wrangler-tui tail</div>
+<p>Stream logs from your deployed Worker. Ctrl-C stops cleanly. No orphaned processes.</p>
+</div>
+<div class="card">
+<div class="name">$ wrangler-tui logout</div>
+<p>Clears the session and verifies with <code>wrangler whoami</code>. Never claims success without proof.</p>
+</div>
+<div class="card">
+<div class="name">$ wrangler-tui test</div>
+<p>Runs 6 checks against a mock project: Node version, Wrangler presence, auth status, project detection, dry-run deploy.</p>
+</div>
+</div>
+</div>
+</section>
+
+<section class="section">
+<div class="wrap">
+<h2>How It Works</h2>
+<h3>One command, two environments</h3>
+<p>You type <code>wrangler-tui</code> once. A small shim handles the Termux-to-PRoot hop, starts the URL bridge if needed, and passes through to the Node.js application inside Debian. The application itself has zero Termux-specific code.</p>
+<div class="arch">
+<div class="arch-node"><span class="label">You type</span>$ wrangler-tui deploy</div>
+<div class="arch-arrow">↓</div>
+<div class="arch-node"><span class="label">Termux shim</span>$PREFIX/bin/wrangler-tui<br><small>starts URL bridge, hops into PRoot</small></div>
+<div class="arch-arrow">↓</div>
+<div class="arch-node"><span class="label">PRoot Debian</span>/usr/local/bin/wrangler-tui<br><small>Node.js application, 14 modules</small></div>
+<div class="arch-arrow">↓</div>
+<div class="arch-node"><span class="label">Cloudflare's own binary</span>spawn('wrangler', [...args])</div>
+<div class="arch-arrow">↓</div>
+<div class="arch-node"><span class="label">Cloudflare</span>your Worker, deployed</div>
+</div>
+<p>Every Cloudflare operation goes through Wrangler's own executable. Nothing is reimplemented. The tool composes; it does not replace.</p>
+</div>
+</section>
+
+<section class="section" id="install">
+<div class="wrap">
+<h2>Install</h2>
+<h3>Three commands. One-time.</h3>
+<p>Requires Termux (from F-Droid, not Play Store), ~1.5 GB free storage, and network access for the initial install.</p>
+<div class="code"><span class="prompt">$</span> git clone https://github.com/SANDMAN-CORPORATION/wrangler-tui
+<span class="prompt">$</span> cd wrangler-tui
+<span class="prompt">$</span> bash setup.sh</div>
+<p>The setup script installs Node.js, Wrangler, and the launcher shim. It is idempotent — safe to run twice.</p>
+</div>
+</section>
+
+<section class="section">
+<div class="wrap">
+<h2>Usage</h2>
+<h3>From any Wrangler project directory</h3>
+<div class="code"><span class="comment"># First time: authenticate</span>
+<span class="prompt">$</span> wrangler-tui auth
+
+<span class="comment"># Create a new project</span>
+<span class="prompt">$</span> wrangler-tui init
+
+<span class="comment"># Deploy a project</span>
+<span class="prompt">$</span> wrangler-tui deploy
+
+<span class="comment"># Or from any directory, without cd</span>
+<span class="prompt">$</span> wrangler-tui deploy --dir ~/my-worker
+
+<span class="comment"># Stream remote logs</span>
+<span class="prompt">$</span> wrangler-tui tail</div>
+<p>See <a href="https://github.com/SANDMAN-CORPORATION/wrangler-tui#usage">the full README</a> for flags, environment variables, and known limitations.</p>
+</div>
+</section>
+
+<section class="section">
+<div class="wrap">
+<h2>What It Does Not Do</h2>
+<h3>Limitations, stated plainly</h3>
+<p>Every tool has limits. These are documented so you are not surprised.</p>
+<div class="limitations">
+<div class="limitation"><strong>Local <code>wrangler dev</code> does not work.</strong><span>The bundled <code>workerd</code> runtime cannot initialize under PRoot's virtual-address configuration. Local development must run on a desktop.</span></div>
+<div class="limitation"><strong>Auth cache TTL is 5 minutes.</strong><span>If you pause for more than 5 minutes between commands, you pay a 25-second re-authentication. This will be tuneable in a future release.</span></div>
+<div class="limitation"><strong>Wrangler's own startup is 11–18 seconds.</strong><span>Every spawn is expensive through PRoot. Three caches reduce the number of spawns, but each spawn is still slow. This is not fixable in the tool.</span></div>
+<div class="limitation"><strong>No resource management yet.</strong><span>KV, D1, R2, and secrets management are post-MVP. Use <code>wrangler</code> directly for these.</span></div>
+<div class="limitation"><strong>First release, no external users yet.</strong><span>104 tests pass on the author's device. It has not been tested by anyone else. First external use is the next milestone.</span></div>
+</div>
+</div>
+</section>
+
+<section class="section">
+<div class="wrap">
+<h2>Support This Project</h2>
+<p><code>wrangler-tui</code> is MIT-licensed and free to use. If it saves you time, you can support its maintenance.</p>
+<div class="support-cta">
+<a class="btn btn-primary" href="https://razorpay.me/@zsar">Support via Razorpay</a>
+</div>
+<p class="note">Payments are processed by SANDMAN-CORPORATION via Razorpay. Accepted methods: UPI, cards (including international), netbanking, and wallets. All payments are one-time.</p>
+<p class="note"><strong>What support pays for:</strong> device-specific testing time, Wrangler version compatibility checks, and the 11–18 second PRoot startup tax that makes every test run expensive.</p>
+</div>
+</section>
+
+<footer>
+<div class="wrap">
+<p>
+<a href="https://github.com/SANDMAN-CORPORATION/wrangler-tui">GitHub</a>
+<a href="https://github.com/SANDMAN-CORPORATION/wrangler-tui/blob/main/LICENSE">MIT License</a>
+<a href="https://github.com/SANDMAN-CORPORATION/wrangler-tui/blob/main/SECURITY.md">Security</a>
+<a href="https://github.com/SANDMAN-CORPORATION/wrangler-tui/blob/main/CONTRIBUTING.md">Contributing</a>
+</p>
+<p class="sig">Built by SANDMAN (Za:r) · 2026</p>
+</div>
+</footer>
+
+</body>
+</html>
