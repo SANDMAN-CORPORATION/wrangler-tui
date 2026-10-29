@@ -26,7 +26,7 @@ The tool exists because Cloudflare's desktop-oriented workflows can be awkward o
 
 ## Support this project
 
-`wrangler-tui` is MIT-licensed and free to use. If it saves you time, you can support its maintenance:
+`wrangler-tui` is MIT-licensed and free to use. If it saves you time, you can support its maintenance and future development:
 
 [![Support via Razorpay](https://img.shields.io/badge/Support%20via-Razorpay-02042B?logo=razorpay&logoColor=white)](https://razorpay.me/@zsar)
 
@@ -706,5 +706,3 @@ It is not a replacement for Wrangler. It is a companion for environments where t
 The current release includes 104 passing tests, measured performance on the target device, and an explicit account of what it does not support. It is ready for initial external use, with the remaining roadmap documented rather than implied to be complete.
 
 ---
-
-*Support links and release metadata should be updated when the project is published. Performance figures describe the tested Termux + Debian PRoot environment and are not universal guarantees.*
