@@ -1,0 +1,45 @@
+
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Wrangler and Cloudflare local state
+.wrangler/
+.dev.vars
+.dev.vars.*
+.wrangler.toml.bak
+
+# Local credentials and secrets
+.env
+.env.*
+!.env.example
+
+# wrangler-tui test state
+.wrangler-tui-test/
+*.tsv.tmp
+
+# Logs and timing output
+*.log
+*.timing
+timing-*.tsv
+
+# Editor and operating system files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Build artifacts
+dist/
+build/
+coverage/
+
+# Temporary files
+*.tmp
+*.bak
+*~
