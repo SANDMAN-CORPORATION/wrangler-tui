@@ -75,8 +75,10 @@ export function run(cmd, args, opts = {}) {
     p.stdout.on('data', (d) => { stdout += d; });
     p.stderr.on('data', (d) => { stderr += d; });
     p.on('error', (e) => res({ code: -1, error: e.message, stdout, stderr, ms: Date.now() - t0 }));
-    if (opts.stdin) { p.stdin.write(opts.stdin); p.stdin.end(); } else p.stdin.end();
-    p.on('close', (code, signal) => res({
+    if (opts.signalAfterMs && opts.signal) {
+  setTimeout(() => { try { p.kill(opts.signal); } catch { /* ignore */ } }, opts.signalAfterMs);
+}
+p.on('close', (code, signal) => res({
       code, signal, stdout, stderr, ms: Date.now() - t0,
       combined: stdout + stderr,
     }));

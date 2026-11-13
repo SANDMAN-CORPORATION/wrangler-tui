@@ -1,10 +1,10 @@
 # wrangler-tui
 
-**Deploy Cloudflare Workers from Termux + PRoot on Android.**  
+**Deploy Cloudflare Workers and Pages from Termux + PRoot on Android.**
 No flags to memorize. No device codes to copy. No bloated runtime.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-104%20passing-brightgreen.svg)](m1/test/)
+[![Tests](https://img.shields.io/badge/tests-~235-brightgreen.svg)](m1/test/)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-green.svg)](m1/package.json)
 [![Platform](https://img.shields.io/badge/platform-Termux%20%2B%20PRoot-orange.svg)](#12-known-limitations)
 
@@ -18,15 +18,15 @@ No flags to memorize. No device codes to copy. No bloated runtime.
 
 The tool exists because Cloudflare's desktop-oriented workflows can be awkward on Android: OAuth callbacks to localhost may fail inside PRoot, the terminal is constrained, filesystem paths cross the Termux/PRoot boundary, and each Wrangler invocation incurs expensive startup time.
 
-**What it does:** authenticate, sign out, scaffold a project, deploy with preflight and typed confirmation, tail remote logs, and self-test.
+**What it does:** authenticate, sign out, scaffold or adopt a project, deploy Workers and Pages with preflight and typed confirmation, tail remote logs, inspect an unknown directory, detect framework shape and recommend a deployment strategy, validate configuration before touching the network, open the Cloudflare dashboard on success, and self-test.
 
 **What it does not do:** run local `wrangler dev`. The bundled `workerd` runtime cannot initialize under the tested Android/PRoot virtual-address configuration. This limitation was discovered during feasibility testing, before feature development, and the MVP scope was narrowed accordingly.
 
-**Measured on the target device:** deployment time fell from approximately 79 seconds at baseline to approximately 41 seconds with warm authentication and a fresh dry-run, through three independent caches. The project has 104 passing automated tests and approximately 2,400 lines of source. The fully warm deployment figure remains an estimate rather than a completed measurement.
+**Measured on the target device:** deployment time fell from approximately 79 seconds at baseline to approximately 41 seconds with warm authentication and a fresh dry-run, through three independent caches. The project has approximately 235 automated tests across 23 suites. The fully warm deployment figure remains an estimate rather than a completed measurement.
 
 ## Support this project
 
-`wrangler-tui` is MIT-licensed and free to use. If it saves you time, you can support its maintenance and future development:
+`wrangler-tui` is MIT-licensed and free to use. If it saves you time, you can support its maintenance:
 
 [![Support via Razorpay](https://img.shields.io/badge/Support%20via-Razorpay-02042B?logo=razorpay&logoColor=white)](https://razorpay.me/@zsar)
 
@@ -62,17 +62,18 @@ Payments are processed by **SANDMAN-CORPORATION** via Razorpay. Accepted methods
 
 ## 2. What the Product Is
 
-`wrangler-tui` is a terminal-native tool for Cloudflare Workers operations in constrained environments.
+`wrangler-tui` is a terminal-native tool for Cloudflare Workers and Pages operations in constrained environments.
 
 It is:
 
 - A wrapper around the official Wrangler CLI.
 - Installable through a single setup script.
-- Usable from any Wrangler project directory.
+- Usable from any Wrangler project directory, or pointed at a specific directory with `--dir`.
 - Compatible with invocation from Termux (through a shim) and from PRoot (natively).
 - Cache-aware: it avoids repeating expensive operations when relevant inputs have not changed.
-
-The tool uses typed commands rather than relying on graphical menus. An interactive menu is available, but each operation is also a subcommand. Scripting is not a design goal.
+- **Session-based:** running `wrangler-tui` with no arguments opens a persistent dashboard. Each action returns to the dashboard; pressing `q` exits to the shell. One-shot commands remain available for scripting.
+- **Shape-aware:** given an unknown directory, the tool inspects the project layout and detects existing Wrangler configs, framework projects (Vite, Astro, Next.js, SvelteKit, Nuxt, Remix), pre-built output folders, plain static sites, and Pages Functions. It blocks unsupported layouts with the exact fix instead of asking the user to make a decision they cannot make.
+- **Self-explaining:** every prompt that asks for user input explains the choices above it, with concrete examples of what happens if one path or the other is chosen.
 
 ## 3. What the Product Is Not
 
@@ -81,9 +82,9 @@ This is equally important for setting expectations. `wrangler-tui` is not:
 - **A replacement for Wrangler.** Cloudflare operations still go through Wrangler's own executable.
 - **A local development environment.** Local `wrangler dev` does not work in the qualified Termux/PRoot environment, and the tool does not pretend otherwise.
 - **A Cloudflare dashboard replacement.** Deployments, account changes, and resource management remain available through Cloudflare's browser interface and official CLI.
-- **A GUI.** It runs in a terminal.
+- **A GUI.** It runs in a terminal. It does use sequential interactive prompts, and a persistent session; it does not use a full-screen spatial layout.
 - **A multi-user tool.** It manages one developer's session at a time.
-- **A CI/CD system.** Its purpose is interactive operations from a phone.
+- **A CI/CD system.** Its purpose is interactive operations from a phone. One-shot commands are available for scripting.
 - **A sandbox.** It runs trusted project operations against the user's Cloudflare account.
 - **A fork of Wrangler or Cloudflare tooling.** It composes existing tools rather than modifying or reimplementing them.
 
@@ -98,6 +99,8 @@ Cloudflare Workers development on desktop is straightforward. On Termux + PRoot,
 | Expensive startup for each command | Each Wrangler invocation starts Node.js and loads Wrangler modules, adding substantial latency. |
 | Deployment target is not prominent | The user must remember the Worker and environment selected by the command. |
 | Authentication checks are expensive | `wrangler whoami` may cost many seconds when run on every deployment. |
+| Unknown project layouts | A directory of static assets has no Cloudflare config. Adopting it correctly requires knowing the difference between Workers assets and Pages, and knowing which routing preset the framework implies. |
+| Retyping `wrangler-tui` repeatedly | A fast developer making three deploys in five minutes types the command three times. |
 
 `wrangler-tui` addresses these issues:
 
@@ -105,7 +108,11 @@ Cloudflare Workers development on desktop is straightforward. On Termux + PRoot,
 - **Termux/PRoot integration:** a launcher shim starts the URL bridge, enters PRoot, binds the state directory, and returns when the guest exits.
 - **Reduced repeated work:** authentication, dry-run preflight, and version resolution use three independent caches with separate invalidation rules.
 - **Visible deployment target:** the configured Worker and environment are shown before the live deployment, and the user must type the exact Worker name to confirm.
-- **Amortized authentication cost:** authentication status is cached for five minutes using a sliding window, so consecutive commands can remain warm.
+- **Amortized authentication cost:** authentication status is cached for 15 minutes using a sliding window, so consecutive commands stay warm. Configurable via `WRANGLER_TUI_AUTH_TTL_MS`.
+- **Shape detection:** `wrangler-tui adopt` reads the directory and recommends the correct target and routing preset from evidence. Unsupported frameworks are blocked with the exact package to install and the docs URL.
+- **Pre-deploy validation:** before any Wrangler spawn, the tool verifies that `main` exists, `assets.directory` exists and contains files, and Pages-only files are handled. Errors surface in under a second instead of after a 30-second failed deploy.
+- **Session mode:** `wrangler-tui` with no arguments stays open and returns to the dashboard after each action.
+- **Dashboard hand-off:** after a successful deploy, the live URL and dashboard URL are printed in the success note. The session `o` action and the `--open` flag open the dashboard directly.
 
 ## 5. Design Principles
 
@@ -138,10 +145,10 @@ proot-distro login debian --work-dir "$PWD"
 /usr/local/bin/wrangler-tui       <- Node.js entry: m1/src/index.mjs
    - parses arguments
    - resolves the target project
-   - dispatches to a workflow
+   - dispatches to a workflow, or opens the session
         |
         v
-m1/src/*.mjs                      <- 14 modules
+m1/src/*.mjs                      <- 22 modules
         |
         v
 spawn('wrangler', [...args])      <- Cloudflare's own executable
@@ -154,16 +161,25 @@ Cloudflare services
 
 | Module | Responsibility |
 |---|---|
-| `index.mjs` | CLI entry, argument parsing, dispatch, top-level error handling. |
-| `ui.mjs` | Wrappers around `@clack/prompts`, stage markers, terminal restoration. |
-| `supervisor.mjs` | Child-process lifecycle, state machine, bounded log buffer, signal escalation. |
-| `wrangler-bin.mjs` | Executable resolution: project-local, `WRANGLER_TUI_WRANGLER_BIN`, then `PATH`. |
+| `index.mjs` | CLI entry, argument parsing, dispatch, SIGINT/SIGTERM handling, top-level error handling. |
+| `ui.mjs` | Wrappers around `@clack/prompts`, stage markers, terminal restoration, age formatting. |
+| `supervisor.mjs` | Child-process lifecycle, state machine, bounded log buffer, signal escalation, active-task registry. |
+| `wrangler-bin.mjs` | Executable resolution: project-local, `WRANGLER_TUI_WRANGLER_BIN`, then `PATH`; version via package.json fast-path. |
 | `project.mjs` | JSONC/JSON/TOML configuration detection, target resolution, typo recovery, `~` expansion. |
-| `auth.mjs` | Login, logout, status, sliding-window cache, device-flow orchestration. |
+| `shape.mjs` | Project shape detection: existing Workers, Vite/Astro/Next.js/SvelteKit/Nuxt/Remix, `dist/`, `functions/`, plain static, empty. |
+| `inspect.mjs` | Read-only directory analysis command. |
+| `validate.mjs` | Pre-deploy validation for Worker and Pages deploys. |
+| `auth.mjs` | Login, logout, status, sliding-window cache (default 15 min, configurable), device-flow orchestration, `peek()` for cache-only reads. |
 | `dryrun.mjs` | Dry-run cache keyed by configuration, source, package, version, binary path, and environment. |
-| `deploy.mjs` | Preflight, confirmation, live deployment, cache invalidation on failure. |
-| `tail.mjs` | Streams `wrangler tail` under supervision. |
+| `deploy.mjs` | Worker deployment: validation, preflight, confirmation, live deploy, cache invalidation on failure, URL extraction. |
+| `pages.mjs` | Cloudflare Pages: `deploy`, `list`, `create`. Reads `.wrangler-tui.json` marker for defaults. |
+| `adopt.mjs` | Makes an existing directory deployable: writes `wrangler.jsonc` (Worker assets) or `.wrangler-tui.json` (Pages marker). Uses shape detection for defaults. |
 | `init.mjs` | Project scaffolding using a minimal local template or Create Cloudflare. |
+| `tail.mjs` | Streams `wrangler tail` under supervision. |
+| `session.mjs` | Persistent session loop: dashboard → action → return. |
+| `dashboard.mjs` | Session state computation and action menu rendering. |
+| `session-state.mjs` | Per-project last-action persistence. |
+| `urls.mjs` | Dashboard URL and deployed URL construction and extraction. |
 | `bridge.mjs` | Queues URL requests for the Termux-side bridge. |
 | `recent.mjs` | Tracks recent projects. |
 | `timing.mjs` | Writes per-invocation timestamp markers. |
@@ -175,7 +191,7 @@ The user's mental model is **one tool, one command, one state directory**:
 
 - **From Termux:** `$PREFIX/bin/wrangler-tui` starts the URL bridge if needed, enters PRoot with `$HOME` and the state directory bound, and passes through the current working directory.
 - **From inside PRoot:** the same command runs natively without another PRoot hop.
-- **Shared state:** `~/.local/state/wrangler-tui/` is bound into the guest, so preferences, caches, and recent-project records are visible from either invocation path.
+- **Shared state:** `~/.local/state/wrangler-tui/` is bound into the guest, so preferences, caches, recent-project records, session state, and dashboard history are visible from either invocation path.
 
 The launcher is a shim rather than part of the application. The Node.js code does not need to know whether it was invoked from Termux or PRoot; it runs against the paths supplied by its environment.
 
@@ -183,7 +199,7 @@ The launcher is a shim rather than part of the application. The Node.js code doe
 
 | Cache | Lifetime | Invalidation |
 |---|---|---|
-| Authentication status | Five minutes, sliding window | Logout, `--refresh`, TTL expiry, or changes to relevant Cloudflare credential environment variables. |
+| Authentication status | 15 minutes, sliding window; configurable via `WRANGLER_TUI_AUTH_TTL_MS` (set to `0` to disable) | Logout, `--refresh`, TTL expiry, or changes to relevant Cloudflare credential environment variables. |
 | Dry-run preflight | No TTL | Source, configuration, `package.json`, Wrangler version, environment changes, or live deployment failure. |
 | Version resolver | Process lifetime | A new application process starts a new resolver lifecycle. |
 
@@ -195,13 +211,18 @@ Each cache has a different correctness requirement. Authentication is time-sensi
 
 | Command | Purpose |
 |---|---|
-| `wrangler-tui` | Opens the interactive menu when a project is available. |
+| `wrangler-tui` | Opens the interactive session (dashboard loop). Requires a project. |
+| `wrangler-tui inspect` | Read-only analysis of the current directory. Reports shape, evidence, blockers, and recommended next step. |
 | `wrangler-tui auth` | Authenticates with Cloudflare or uses a valid cached status. |
 | `wrangler-tui auth --refresh` | Forces a fresh authentication-status check. |
 | `wrangler-tui logout` | Signs out and verifies that authentication state is cleared. |
-| `wrangler-tui init` | Creates a new Wrangler project. |
+| `wrangler-tui init` | Creates a new Wrangler project from a template. |
+| `wrangler-tui adopt` | Makes an existing directory deployable. Uses shape detection for defaults. |
 | `wrangler-tui deploy` | Runs deployment preflight, confirmation, and live deployment. |
 | `wrangler-tui tail` | Streams remote Worker logs. |
+| `wrangler-tui pages deploy [<dir>]` | Deploys a static site to Cloudflare Pages. |
+| `wrangler-tui pages list` | Lists Pages projects. |
+| `wrangler-tui pages create <name>` | Creates an empty Pages project. |
 | `wrangler-tui test` | Runs the self-test suite against a mock project. |
 | `wrangler-tui --version` | Prints the application version. |
 | `wrangler-tui help` | Shows usage information. |
@@ -210,23 +231,57 @@ Each cache has a different correctness requirement. Authentication is time-sensi
 
 | Flag | Applies to | Purpose |
 |---|---|---|
-| `--dir <path>` | `init`, `deploy`, `tail` | Operates on a specific project directory. Relative paths resolve against the current working directory; `~` is expanded. |
+| `--dir <path>` | `init`, `adopt`, `deploy`, `tail`, `pages`, `inspect` | Operates on a specific project directory. Relative paths resolve against the current working directory; `~` is expanded. |
+| `--assets-dir <path>` | `adopt` | Points at the static assets directory explicitly. |
+| `--target <t>` | `adopt` | `worker-assets` or `pages`. Rejected if it conflicts with the detected shape. |
+| `--preset <p>` | `adopt` | `static` or `spa`. Uses shape detection's recommendation if omitted. |
+| `--base-path <path>` | `adopt` | Serves assets under a URL subpath. |
+| `--name <name>` | `adopt`, `pages create`, `pages deploy` | Project or Worker name. Skips the name prompt. |
+| `--branch <branch>` | `adopt`, `pages deploy` | Pages production branch. Defaults to `main`. |
 | `--refresh` | `auth` | Forces a fresh authentication-status check. |
 | `--fresh` | `deploy` | Forces a new dry-run rather than using the cache. |
+| `--open` | `deploy` | Opens the Cloudflare dashboard after successful deployment. |
 | `--keep` | `test` | Preserves the mock project after testing. |
 
 ### 7.3 Behavioural guarantees
 
 - The deployment target is visible before a live mutation: account, Worker name, environment, and configuration path.
 - Typed confirmation is required. The user must enter the exact Worker name; a mismatch cancels the deployment.
+- **Pre-deploy validation runs before any Wrangler spawn.** Missing `main`, missing `assets.directory`, empty asset directories, and un-ignored Pages-only files are caught in under a second.
 - Preflight runs first. `wrangler deploy --dry-run` must succeed before the live deployment starts. A failed preflight stops the workflow.
-- Success is determined by the process exit code, not by matching a message such as “Deployed”.
+- Success is determined by the process exit code, not by matching a message such as "Deployed".
 - The dry-run cache is invalidated after a live-deployment failure, so the next attempt does not rely on the previous result.
 - `wrangler-tui` does not write Cloudflare credentials to disk. Wrangler manages authentication; the application caches derived authentication status and account-email information.
+- **SIGINT/SIGTERM handlers kill active Wrangler children before the process exits.** In a TTY, Ctrl-C hits the whole process group and children die naturally. In scripts and supervisors that send signals by PID, the handler ensures children are terminated, waits up to 3 seconds for graceful shutdown, then escalates to SIGKILL. A second Ctrl-C forces immediate exit.
 
 ### 7.4 Confirmation boundary
 
 The production CLI does not expose `WRANGLER_TUI_AUTO_CONFIRM` or another environment variable that bypasses typed deployment confirmation. A test-only entry point, `m1/test/invoke-deploy.mjs`, supports test injection; it is not the production CLI entry point. The test suite verifies that plausible confirmation-bypass variables do not affect production behavior.
+
+### 7.5 Shape detection
+
+`wrangler-tui adopt` and `wrangler-tui inspect` detect the project layout before asking any question:
+
+| Shape | What the tool does |
+|---|---|
+| Existing `wrangler.jsonc` with `main` or `assets.directory` | Reports "already deployable"; suggests `wrangler-tui deploy`. No writes. |
+| Config with neither `main` nor `assets` | Blocks with the exact fix. |
+| Unparseable config | Blocks with the parse error. |
+| Vite (with `dist/`) | Recommends `spa` preset. |
+| Astro (with `dist/`) | Recommends `static` preset. |
+| Next.js with static export (`out/`) | Recommends `static` preset. |
+| Next.js without export | Blocks with `@opennextjs/cloudflare` install instructions. |
+| SvelteKit with `adapter-cloudflare` | Recommends Pages. |
+| SvelteKit with `adapter-static` | Recommends `static` preset. |
+| SvelteKit without either adapter | Blocks with adapter install instructions. |
+| Nuxt with Cloudflare preset (`.output/`) | Recommends Pages. |
+| Nuxt without preset | Blocks with `NITRO_PRESET` instructions. |
+| Remix | Blocks with the Remix + Cloudflare guide URL. |
+| `dist/index.html` with no framework markers | Recommends `static` preset. |
+| `functions/` directory | Recommends Pages (Workers assets cannot deploy Pages Functions). |
+| `index.html` at root | Offers Workers assets or Pages with preset picker. |
+| Empty directory | Blocks with a hint to pass `--assets-dir`. |
+| Unrecognized layout | Blocks with the list of what was checked and a `--assets-dir` hint. |
 
 ## 8. Evidence: Measurements and Test Coverage
 
@@ -242,7 +297,7 @@ Measurements were collected on the target device: Termux + Debian PRoot (trixie)
 | Warm auth and warm dry-run | 0 s | 0 s | ~28 s | ~37 s |
 | Fully warm, inferred rather than measured | 0 s | 0 s | ~28 s | ~30.5 s (estimate) |
 
-The fully warm number is an estimate, not a completed measurement. An attempt to measure it missed because the authentication cache had expired after 7 minutes and 17 seconds—longer than the five-minute TTL. The first four rows are reported measurements; the final row is an inference.
+The fully warm number is an estimate, not a completed measurement. The first four rows are reported measurements; the final row is an inference.
 
 ### 8.2 Version resolver
 
@@ -256,21 +311,33 @@ The version subprocess was eliminated by reading package metadata from the resol
 
 ### 8.3 Test suite
 
-**104 tests across 11 suites** pass in approximately 33 seconds on the reported environment.
+**Approximately 235 tests across 23 suites.** Run `bash m1/test/run.sh` for the exact current count in your environment.
 
 | Suite | Coverage |
 |---|---|
 | `01-syntax` | Every `src/*.mjs` file parses and every module imports cleanly. |
 | `02-project` | Project detection and target resolution: absolute and relative paths, `~`, typo recovery, ancestry. |
 | `03-timing` | `mark()` writes timing output when enabled and is a no-op otherwise. |
-| `04-init` | Initialization/scaffolding tests, including the minimal-template path where exported. |
-| `05-cli` | Real CLI behavior: version, help, unknown commands, project-resolution exit codes. |
-| `06-shim` | Launcher requirements such as `--work-dir`, avoiding `exec`, `--dir` handling, and terminal restoration. |
-| `07-auth-cache` | Cache hit/miss, refresh, invalidation, and sliding-window behavior. |
-| `08-recent` | Recent-project recording, deduplication, and bounded history. |
-| `09-dryrun` | Cache-key stability, change detection, round-trip behavior, and invalidation. |
-| `10-dryrun-cli` | End-to-end cold/warm cache behavior, source-change invalidation, `--fresh`, deployment-failure invalidation, confirmation boundary. |
-| `11-resolver` | Resolution precedence, environment override, PATH fallback, non-executable entries, malformed metadata, unknown version. |
+| `04-init` | Initialization/scaffolding tests. |
+| `05-cli` | Real CLI behavior: version, help, unknown commands, argument parsing, project-resolution exit codes. |
+| `06-shim` | Launcher requirements: `--work-dir`, no `exec`, `--dir` handling, `stty sane`. |
+| `07-auth-cache` | Cache hit/miss, refresh, invalidation, sliding-window behavior, default TTL display, `WRANGLER_TUI_AUTH_TTL_MS=0` disables cache. |
+| `08-recent` | Recent-project recording, deduplication, bounded history. |
+| `09-dryrun` | Cache-key stability, change detection, round-trip behavior, invalidation. |
+| `10-dryrun-cli` | End-to-end cold/warm cache behavior, source-change invalidation, `--fresh`, failure invalidation, confirmation boundary. |
+| `11-resolver` | Executable resolution precedence, env override, PATH fallback, malformed metadata, unknown version. |
+| `12-pages` | Pages directory detection, project-name detection. |
+| `13-pages-cli` | Pages deploy/list/create end-to-end. |
+| `14-adopt` | Worker config and Pages marker writing, merge into existing config, assets ignore. |
+| `15-adopt-cli` | Adopt end-to-end; deploy-after-adopt reaches preflight; pages deploy reads marker defaults. |
+| `16-session` | Session state persistence, dashboard render, session loop with mocked select. |
+| `17-shape` | All 19 project shapes: Workers full/assets/incomplete/invalid, Vite, Astro, Next.js blocked/exported, SvelteKit blocked/static, Nuxt, Remix, built-dist, Pages Functions, plain static, empty, unknown. |
+| `18-inspect` | Inspect reports evidence and recommendations; blocked shapes exit non-zero. |
+| `19-validate` | Worker and Pages pre-deploy validation: missing main/assets, empty directories, un-ignored Pages files. |
+| `20-validate-cli` | Validation runs before Wrangler spawn; argv log proves deploy was not invoked. |
+| `21-urls` | Dashboard URL and deployed URL construction and extraction. |
+| `22-handoff` | Deploy success shows live + dashboard URLs; `--open` queues the dashboard URL. |
+| `23-interrupt` | SIGINT/SIGTERM exit codes (130/143) and no orphaned children. |
 
 Each test defines its own preconditions; the suite does not rely on test ordering.
 
@@ -316,15 +383,15 @@ The decision is to ship the deploy-oriented scope now. Developers who require lo
 
 ### 9.5 Blessed as TUI framework
 
-**Decision: rejected.** Blessed is no longer actively maintained, and `neo-blessed` is also old. `@clack/prompts` was selected for the MVP's linear, narrow-terminal-first interaction model. A full-screen dashboard is unnecessary for the present scope.
+**Decision: rejected.** Blessed is no longer actively maintained, and `neo-blessed` is also old. `@clack/prompts` was selected for the MVP's linear, narrow-terminal-first interaction model. A full-screen dashboard is unnecessary for the present scope; the session loop is sequential prompts, not a spatial grid.
 
 ### 9.6 Custom `workerd` build
 
 **Decision: not part of the current release.** Disabling TCMalloc is a technically credible route, but a custom binary would add a substantial artifact and require version-matched builds and validation on Wrangler upgrades. The team has chosen not to take on that burden for the initial deploy-oriented product. This is a product-scope decision, not a claim that a compatible build is theoretically impossible.
 
-### 9.7 Dashboard hand-off and `wrangler dev --remote`
+### 9.7 Full-screen TUI framework
 
-**Decision: deferred, not rejected.** A dashboard deep link after deployment and an explicit remote-development command are possible small enhancements. They are not included in the current release freeze.
+**Decision: deferred until measured demand.** Sequential prompts with contextual explanation solve the "the tool is confusing" problem more cheaply than a spatial UI. On a phone keyboard, clicking small cells in a 24-row grid is slower than pressing a key at a prompt. If a real user reports that the sequential model is the blocker, a framework change can be reconsidered with concrete evidence.
 
 ## 10. Installation
 
@@ -338,7 +405,7 @@ The decision is to ship the deploy-oriented scope now. Developers who require lo
 ### 10.2 Install
 
 ```bash
-git clone <repo-url> ~/wrangler-tui
+git clone https://github.com/SANDMAN-CORPORATION/wrangler-tui ~/wrangler-tui
 cd ~/wrangler-tui
 bash setup.sh
 ```
@@ -356,7 +423,7 @@ The Node.js LTS release is resolved during setup rather than hardcoded in the in
 ### 10.3 Verify
 
 ```bash
-wrangler-tui --version   # Expected: 0.1.0-m1 and a timing table
+wrangler-tui --version   # Expected: 0.8.0-m2 and a timing table
 wrangler-tui test        # Expected: self-test summary with PASS results
 ```
 
@@ -364,7 +431,35 @@ The product's automated regression suite is separate from the quick self-test co
 
 ## 11. Usage
 
-### 11.1 First-time authentication
+### 11.1 Session mode
+
+```bash
+cd ~/my-worker
+wrangler-tui
+```
+
+The tool opens a dashboard:
+
+```
+wrangler-tui 0.8.0-m2
+Project:  com2
+Type:     Worker
+Account:  user@example.com (cached 2m ago)
+Last:     deploy (ok) — 3h ago
+State:    files changed since last preflight
+
+What would you like to do?
+  Deploy
+  Tail logs
+  Open in Cloudflare dashboard
+  Re-authenticate
+  Switch project
+  Quit
+```
+
+Each action returns to this dashboard. `q` exits to the shell. This is the intended usage when you are doing multiple operations in one sitting.
+
+### 11.2 First-time authentication
 
 ```bash
 wrangler-tui auth
@@ -379,23 +474,34 @@ The tool will:
 5. Copy the code to the clipboard if `termux-clipboard-set` is available.
 6. Wait for the user to approve the request in the browser.
 7. Verify the result using `wrangler whoami --json`.
-8. Cache the derived authentication status for five minutes using a sliding window.
+8. Cache the derived authentication status for 15 minutes using a sliding window.
 
-### 11.2 Create a project
+### 11.3 Create a project
 
 ```bash
 wrangler-tui init
 ```
 
-The workflow prompts for:
+The workflow prompts for destination, Worker name, and template (minimal or `create-cloudflare`). After scaffolding, the tool adopts the new directory as its target and displays the next action.
 
-- Destination directory (suggested default: `~/projects/my-worker`).
-- Worker name.
-- Template: a minimal offline template generated by the tool, or the official `create-cloudflare` flow.
+### 11.4 Adopt an existing directory
 
-After scaffolding, the tool adopts the new directory as its target and displays the next action.
+```bash
+cd ~/my-vite-site
+wrangler-tui inspect      # what does the tool see?
+wrangler-tui adopt        # make it deployable
+```
 
-### 11.3 Deploy
+`inspect` reports shape, evidence, blockers, and recommended next step. `adopt` uses that same detection to skip prompts:
+
+- If the shape has a single valid target (e.g. Pages Functions), it selects it without asking.
+- If the shape recommends a preset (e.g. Vite → `spa`), it selects it without asking.
+- If there is one target but no preset recommendation, it asks only the target.
+- If there are two targets and no recommendation, it asks both, with explained options.
+
+After adopting, `wrangler-tui deploy` or `wrangler-tui pages deploy` works from any directory.
+
+### 11.5 Deploy a Worker
 
 From inside a project:
 
@@ -408,21 +514,38 @@ Or from any directory:
 
 ```bash
 wrangler-tui deploy --dir ~/my-worker
+wrangler-tui deploy --dir ~/my-worker --open    # also opens the dashboard
 ```
 
 The flow is:
 
-1. Display project information: name, configuration, main entry, and environments.
+1. Display project information: name, configuration, main entry, assets directory, environments.
 2. Check authentication, using the cache if valid.
-3. Display the deployment target: Worker, environment, main entry, compatibility date, and configuration path.
-4. Run `wrangler deploy --dry-run`, using the cache when its fingerprint still applies.
-5. Ask the user to type the Worker name to confirm.
-6. Run `wrangler deploy`.
-7. Report the result using the process exit status.
+3. Display the deployment target: Worker, environment, main entry, assets, routing, compatibility date, and configuration path.
+4. **Pre-deploy validation** (before any Wrangler spawn): `main` exists, `assets.directory` exists and is not empty, Pages-only files are handled. Failures surface in under a second.
+5. Run `wrangler deploy --dry-run`, using the cache when its fingerprint still applies.
+6. Ask the user to type the Worker name to confirm.
+7. Run `wrangler deploy`.
+8. Extract the deployed URL from the streamed output, build the dashboard URL, and print both in the success note.
 
-If preflight fails, deployment does not proceed. If the typed Worker name does not match, the operation is cancelled. If the live deployment fails, the dry-run cache is invalidated.
+If validation fails, no Wrangler subprocess is spawned. If preflight fails, deployment does not proceed. If the typed Worker name does not match, the operation is cancelled. If the live deployment fails, the dry-run cache is invalidated.
 
-### 11.4 Tail logs
+### 11.6 Deploy a static site to Pages
+
+```bash
+wrangler-tui pages deploy ./dist
+wrangler-tui pages deploy --name my-site --branch main
+```
+
+Or, after `wrangler-tui adopt --target pages`, from the project directory:
+
+```bash
+wrangler-tui pages deploy
+```
+
+Reads `.wrangler-tui.json` for project name, assets directory, and branch. No prompts.
+
+### 11.7 Tail logs
 
 ```bash
 wrangler-tui tail
@@ -430,20 +553,23 @@ wrangler-tui tail
 
 Streams logs from the deployed Worker. Ctrl-C stops the tail process cleanly and returns control to the application.
 
-### 11.5 Flags
+### 11.8 Inspect an unknown directory
 
-- `--dir <path>` — operate on a project without changing directories. Relative paths resolve against the current working directory; `~` is expanded.
-- `--refresh` — force a fresh authentication check.
-- `--fresh` — force a fresh dry-run.
-- `--keep` — preserve the mock project after the self-test.
+```bash
+wrangler-tui inspect
+wrangler-tui inspect --dir ~/scratch-project
+```
 
-### 11.6 Environment variables
+Read-only. Reports shape, evidence, blockers (with exact fixes), and recommended next action.
+
+### 11.9 Environment variables
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `WRANGLER_TUI_STATE_DIR` | Shared state directory | `~/.local/state/wrangler-tui` |
 | `WRANGLER_TUI_WRANGLER_BIN` | Explicit Wrangler executable | Unset |
 | `WRANGLER_TUI_DISTRO` | PRoot distribution name | `debian` |
+| `WRANGLER_TUI_AUTH_TTL_MS` | Auth cache TTL in ms. `0` disables caching. | `900000` (15 minutes) |
 
 ## 12. Known Limitations
 
@@ -455,9 +581,9 @@ Default local `wrangler dev` cannot run in the tested Termux/PRoot environment b
 
 The application does not expose local development as a working feature or silently fall back to a broken state. `wrangler dev --remote`, which executes on Cloudflare infrastructure rather than using the local runtime, remains a possible future feature but is not exposed as a first-class command in this release.
 
-### 12.2 Authentication cache TTL is five minutes
+### 12.2 Authentication cache TTL is 15 minutes
 
-The five-minute sliding window is correct for the current cache policy but can be short for a mobile development session. A user who deploys, edits for six minutes, and deploys again may pay for another authentication-status check. Extending the TTL to 15–20 minutes or making it configurable is a possible future enhancement, subject to usage measurements and clear staleness reporting.
+The 15-minute sliding window is correct for typical mobile sessions. A user who deploys, edits for more than 15 minutes, and deploys again pays for another authentication-status check. The TTL is configurable via `WRANGLER_TUI_AUTH_TTL_MS`, and setting it to `0` disables the cache entirely.
 
 ### 12.3 Wrangler startup is slow under PRoot
 
@@ -469,7 +595,7 @@ Wrangler commonly reports upload and trigger durations totalling approximately 9
 
 ### 12.5 Fully warm deployment time has not been measured
 
-An attempt to measure this state missed because authentication had expired after 7 minutes and 17 seconds, exceeding the five-minute cache TTL. The first four deployment measurements in Section 8.1 are measured; the fully warm value is an estimate.
+An attempt to measure this state missed because authentication had expired. The first four deployment measurements in Section 8.1 are measured; the fully warm value is an estimate.
 
 ### 12.6 Older Wrangler versions may lack preferred authentication output
 
@@ -481,7 +607,11 @@ Use an actively maintained Termux distribution with working package repositories
 
 ### 12.8 No external users have validated the product yet
 
-This release is an M1 walking skeleton tested extensively by its author. It has not yet been independently tested by external users. External testing is a next milestone, not a claim of completed validation.
+This release has been tested extensively by its author. It has not yet been independently tested by external users. External testing is a next milestone, not a claim of completed validation.
+
+### 12.9 Some framework adapters are not auto-installed
+
+For Next.js, SvelteKit, Nuxt, and Remix, the tool detects the framework, reports what is missing (an adapter package or a build preset), and provides the exact install command and a documentation URL. It does not run `npm install` itself. The user is expected to install the adapter and re-run.
 
 ## 13. Security Posture
 
@@ -489,7 +619,7 @@ This release is an M1 walking skeleton tested extensively by its author. It has 
 
 - Reads project configuration files in JSONC, JSON, or TOML formats.
 - Reads application preferences where configured.
-- Writes application state for caches, recent-project history, and optional timing data.
+- Writes application state for caches, recent-project history, session state, and optional timing data.
 - Spawns Wrangler subprocesses with argument arrays and `shell: false`.
 - Queues URLs for the Termux-side browser bridge.
 
@@ -507,7 +637,11 @@ Wrangler processes are spawned with argument arrays and `shell: false`. User-sup
 
 The production CLI requires the exact Worker name to be typed before deployment. There is no production environment variable that bypasses this step. Automated tests verify that `WRANGLER_TUI_AUTO_CONFIRM`, `WRANGLER_TUI_TEST_CONFIRM`, and `WRANGLER_TUI_TEST_MODE` do not weaken the production confirmation boundary.
 
-### 13.5 Trust model
+### 13.5 Signal handling
+
+SIGINT and SIGTERM are caught by the application. Active Wrangler children are sent SIGTERM, given up to three seconds to exit, then SIGKILL. A second interrupt forces immediate exit. This prevents orphaned `wrangler` or `workerd` processes when signals are sent by PID rather than through a TTY process group.
+
+### 13.6 Trust model
 
 `wrangler-tui` operates on a developer's own project and Cloudflare account. It does not sandbox Worker execution. Local `dev` is out of scope in this release, so normal usage does not run Worker code on the device. Users should deploy only code they trust and to accounts they control.
 
@@ -521,34 +655,25 @@ The following items are future work, not requirements for the current release. E
 
 | Item | Value | Estimated effort | Dependency |
 |---|---|---|---|
-| Dashboard hand-off | Offer to open the Cloudflare dashboard for the deployed Worker after a successful deployment. | About one day | None |
 | `wrangler dev --remote` | Expose remote development as a first-class `wrangler-tui` command. | About half a day | Existing authentication workflow |
 
-### 14.2 Authentication TTL tuning
-
-Measure typical mobile sessions before changing the authentication cache TTL from five minutes. A future implementation could use 15–20 minutes and display the age of the last verified identity result.
-
-### 14.3 `cf` CLI adapter
+### 14.2 `cf` CLI adapter
 
 As Cloudflare's `cf` CLI stabilizes, an adapter behind the existing boundary could support read-only resource inspection and carefully confirmed resource mutations. It is not an MVP requirement, and a specific operation must be demonstrated to be better supported by `cf` before adopting it.
 
-### 14.4 Authentication profiles
+### 14.3 Authentication profiles
 
 When Wrangler's profile support is no longer documented as experimental, profile-based account switching may replace the current logout/login workflow. This requires validating profile-resolution precedence in PRoot.
 
-### 14.5 Resource inspection
+### 14.4 Resource inspection
 
 Potential read-only features include listing KV namespaces, D1 databases, R2 buckets, and secret names. Each resource type needs its own output and safety decisions even if it uses the same supervisor.
 
-### 14.6 Interrupted-operation automated test
+### 14.5 Bundling the TUI application
 
-Manual testing during Commit 4.5 observed Ctrl-C terminating a PRoot session and restoring the terminal correctly. This behavior is not yet covered by a dedicated automated test. A future suite should exercise signal handling during authentication, dry-run, live deployment, and tailing.
+Bundling the ~3,500 lines across 22 modules into one file may reduce application startup file reads by an estimated 300–500 ms per invocation. This is lower priority than Wrangler's measured startup cost and should be benchmarked before adoption.
 
-### 14.7 Bundling the TUI application
-
-Bundling the approximately 2,400 lines across 14 modules into one file may reduce application startup file reads by an estimated 300–500 ms per invocation. This is lower priority than Wrangler's measured startup cost and should be benchmarked before adoption.
-
-### 14.8 Persistent PRoot session
+### 14.6 Persistent PRoot session
 
 A persistent guest session could eliminate roughly 40 ms of PRoot entry per invocation, but PRoot entry is not the measured bottleneck. The lifecycle complexity is not justified by current evidence, so this remains deferred.
 
@@ -557,7 +682,14 @@ A persistent guest session could eliminate roughly 40 ms of PRoot entry per invo
 ```text
 wrangler-tui/
 ├── README.md                      <- this document
+├── LICENSE                        <- MIT
+├── CONTRIBUTING.md
+├── SECURITY.md
+├── CODE_OF_CONDUCT.md
+├── .gitignore
 ├── setup.sh                       <- one-time installer and Termux entry
+├── docs/
+│   └── index.html                 <- GitHub Pages landing page
 ├── m0/                            <- feasibility harness
 │   ├── README.md
 │   ├── run.sh
@@ -565,17 +697,26 @@ wrangler-tui/
 └── m1/                            <- product
     ├── package.json
     ├── README.md
-    ├── src/                       <- 14 application modules
+    ├── src/                       <- 22 application modules
     │   ├── index.mjs
     │   ├── ui.mjs
     │   ├── supervisor.mjs
     │   ├── wrangler-bin.mjs
     │   ├── project.mjs
+    │   ├── shape.mjs
+    │   ├── inspect.mjs
+    │   ├── validate.mjs
     │   ├── auth.mjs
     │   ├── dryrun.mjs
     │   ├── deploy.mjs
-    │   ├── tail.mjs
+    │   ├── pages.mjs
+    │   ├── adopt.mjs
     │   ├── init.mjs
+    │   ├── tail.mjs
+    │   ├── session.mjs
+    │   ├── dashboard.mjs
+    │   ├── session-state.mjs
+    │   ├── urls.mjs
     │   ├── bridge.mjs
     │   ├── recent.mjs
     │   ├── timing.mjs
@@ -584,7 +725,7 @@ wrangler-tui/
     │   ├── launcher.sh
     │   ├── url-bridge.sh
     │   └── install-guest.sh
-    └── test/                      <- 104 tests across 11 suites
+    └── test/                      <- ~235 tests across 23 suites
         ├── run.sh
         ├── run-in-guest.sh
         ├── harness.mjs
@@ -602,10 +743,20 @@ wrangler-tui/
             ├── 08-recent.mjs
             ├── 09-dryrun.mjs
             ├── 10-dryrun-cli.mjs
-            └── 11-resolver.mjs
+            ├── 11-resolver.mjs
+            ├── 12-pages.mjs
+            ├── 13-pages-cli.mjs
+            ├── 14-adopt.mjs
+            ├── 15-adopt-cli.mjs
+            ├── 16-session.mjs
+            ├── 17-shape.mjs
+            ├── 18-inspect.mjs
+            ├── 19-validate.mjs
+            ├── 20-validate-cli.mjs
+            ├── 21-urls.mjs
+            ├── 22-handoff.mjs
+            └── 23-interrupt.mjs
 ```
-
-Do not publish the manual-test Worker project as part of the root repository. Remove it or move it into a clearly named, non-production test-fixture directory before release.
 
 ## 16. How to Verify the Build Works
 
@@ -616,7 +767,7 @@ cd ~/wrangler-tui
 bash m1/test/run.sh
 ```
 
-Expected at the time of this document: **104 tests, 104 passed, 0 failed**, in approximately 33 seconds. The expected count should be updated when the suite changes.
+Expected: approximately 235 tests, all passing, in about 90 seconds. The expected count should be updated when the suite changes.
 
 ### 16.2 Real deployment verification
 
@@ -636,7 +787,7 @@ wrangler-tui deploy --dir ~/projects/<name>
 curl https://<worker>.<subdomain>.workers.dev/
 ```
 
-Expected: a live test Worker is reachable at the URL shown by the deployment flow.
+Expected: a live test Worker is reachable at the URL shown by the deployment flow, and the success note shows both the live URL and the dashboard URL.
 
 ### 16.3 Cache verification
 
@@ -648,13 +799,25 @@ wrangler-tui deploy --dir ~/projects/<name>
 
 On the second run, when both caches remain valid, expected markers include `deploy.dryrun.cached` and `auth.status.cached`. The timing output should not show `deploy.dryrun.fresh` or a fresh authentication-status subprocess.
 
-### 16.4 Check for orphaned processes
+### 16.4 Shape detection verification
+
+```bash
+cd ~/scratch-vite-project     # any Vite project with dist/
+wrangler-tui inspect
+# Expected: "Detected: Vite project", evidence listing, "Recommended routing: spa"
+
+cd ~/scratch-next-project     # any Next.js project without static export
+wrangler-tui inspect
+# Expected: blocked with @opennextjs/cloudflare install instructions
+```
+
+### 16.5 Check for orphaned processes
 
 ```bash
 ps -ef | grep -E 'wrangler|workerd|proot' | grep -v grep
 ```
 
-Expected during an idle session: only the URL-bridge daemon, if it is configured to remain running. There should be no unintended orphaned Wrangler or `workerd` process.
+Expected during an idle session: only the URL-bridge daemon, if it is configured to remain running. There should be no unintended orphaned Wrangler or `workerd` process, even after Ctrl-C or a scripted SIGTERM.
 
 ## 17. Version History
 
@@ -666,26 +829,29 @@ The project was built through staged commits, each accepted after the full regre
 | Commit 1 | Timing instrumentation. | 54 |
 | Commit 2 | Project targeting (`--dir`) and scaffold destination fix. | 54 |
 | Commit 3 | Authentication cache with sliding window. | 61 |
-| Commit 3.5 | Fuzzy suggestions, `~` expansion, recent projects. | 70, then 69 after stale-test cleanup |
+| Commit 3.5 | Fuzzy suggestions, `~` expansion, recent projects. | 70 |
 | Commit 4 | Dry-run cache. | 90 |
 | Commit 4.5 | Executable resolver, version fast path, confirmation-boundary fix. | 104 |
-| Post-4.5 | Attempted fully warm measurement; missed because authentication had expired. | 104 |
+| M2.1 | Cloudflare Pages (`pages deploy/list/create`) and `adopt`. | 137 |
+| M2.2 | Session mode and self-explaining prompts. | ~145 |
+| M2.3 | Shape detection (`inspect`, `wrangler-tui adopt` with recommendations). | ~168 |
+| M2.4 | Pre-deploy validation for Worker and Pages deploys. | ~185 |
+| M2.5 | Dashboard hand-off after successful deploy; `--open`. | ~228 |
+| M2.6 | Auth TTL default 15 min with env override; SIGINT/SIGTERM handler. | ~235 |
 
-No accepted commit introduced a measured regression in a previously passing capability. The test suite protects against regressions discovered during implementation, including project-path resolution, launcher working-directory handling, terminal restoration, sliding-window cache behavior, executable resolution, and confirmation bypass attempts.
+No accepted commit introduced a measured regression in a previously passing capability.
 
 ## 18. Licensing and Distribution
 
 ### License
 
-The publishing plan proposes the MIT License. The repository should include a root-level `LICENSE` file containing the complete MIT license text before the README's MIT badge is treated as authoritative.
+MIT License. See `LICENSE`.
 
-The application uses permissively licensed dependencies, including:
+The application uses permissively licensed dependencies:
 
 - `@clack/prompts` — MIT
 - `jsonc-parser` — MIT
 - `smol-toml` — MIT
-
-Verify dependency license metadata again at release time.
 
 ### Distribution
 
@@ -697,12 +863,14 @@ The current installation method is a repository clone followed by `bash setup.sh
 
 ## 19. Closing Statement
 
-`wrangler-tui` is a small, focused tool for a specific problem: deploying Cloudflare Workers from an Android phone without memorizing Cloudflare CLI flags or wrestling with OAuth in a constrained terminal.
+`wrangler-tui` is a small, focused tool for a specific problem: deploying Cloudflare Workers and Pages from an Android phone without memorizing Cloudflare CLI flags or wrestling with OAuth in a constrained terminal.
 
 It was built from a reviewed concept through a systematic milestone plan. Feasibility was tested before feature code was written. Scope was narrowed based on observed platform behavior, not convenience. Capabilities were tested on the target device rather than only in a mock harness.
 
 It is not a replacement for Wrangler. It is a companion for environments where the ordinary Wrangler workflow is cumbersome. Developers who work entirely on desktop may not need it; Android developers who encounter these specific problems may find it useful.
 
-The current release includes 104 passing tests, measured performance on the target device, and an explicit account of what it does not support. It is ready for initial external use, with the remaining roadmap documented rather than implied to be complete.
+The current release includes approximately 235 passing tests, measured performance on the target device, and an explicit account of what it does not support. It is ready for initial external use, with the remaining roadmap documented rather than implied to be complete.
 
 ---
+
+*Performance figures describe the tested Termux + Debian PRoot environment and are not universal guarantees.*

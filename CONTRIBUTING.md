@@ -14,10 +14,10 @@ The project helps developers deploy Cloudflare Workers from Termux and Debian PR
 | Documentation fixes and clarifications | High |
 | Wrangler version compatibility reports | High |
 | Deployment safety and confirmation improvements | High |
-| Dashboard hand-off after successful deployment | Roadmap |
 | `wrangler dev --remote` command | Roadmap |
-| Authentication cache tuning based on measurements | Roadmap |
 | Read-only resource inspection for KV, D1, and R2 | Roadmap |
+| `cf` CLI adapter for supported operations | Roadmap |
+| Authentication profile support (directory-scoped accounts) | Roadmap |
 | New full-screen TUI frameworks | Not currently planned |
 | AI features before deterministic diagnostics are established | Not currently planned |
 | Custom `workerd` builds or a bundled runtime | Out of scope for the current project |
@@ -52,7 +52,7 @@ Contributions should preserve these principles:
 7. Explain any new dependency and why existing functionality cannot meet the requirement.
 8. Never include credentials, access tokens, private configuration, or personal deployment data in commits.
 
-The current baseline is **104 automated tests across 11 suites**. If the suite changes, update the documented count only after verifying the new result.
+The current baseline is approximately **235 automated tests across 23 suites** (run `bash m1/test/run.sh` for the exact count in your environment). If the suite changes, update the documented count only after verifying the new result.
 
 ## Development Setup
 
@@ -93,11 +93,15 @@ The test suite is designed to run inside Debian PRoot and uses mock Wrangler bin
 Changes involving these areas should include appropriate regression coverage:
 
 - Project discovery and configuration parsing
-- Authentication and logout
-- Wrangler executable resolution
+- Project shape detection (new frameworks, new output layouts)
+- Pre-deploy validation (new error conditions)
+- Authentication, logout, cache TTL, and cache invalidation
+- Wrangler executable resolution and version fast path
 - Dry-run cache creation and invalidation
 - Deployment confirmation and failure handling
-- Subprocess lifecycle and interruption
+- Dashboard URL construction and deployed URL extraction
+- Subprocess lifecycle, signal handling, and interruption
+- Session state persistence and dashboard render
 - Termux/PRoot launcher behaviour
 - URL bridge behaviour
 - Version and dependency compatibility

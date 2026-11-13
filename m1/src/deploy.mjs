@@ -2,6 +2,8 @@ import { spawnTask } from './supervisor.mjs';
 import * as ui from './ui.mjs';
 import * as auth from './auth.mjs';
 import * as dryrun from './dryrun.mjs';
+import * as validate from './validate.mjs';
+import * as urls from './urls.mjs';
 import { mark } from './timing.mjs';
 import { resolveWranglerBinary } from './wrangler-bin.mjs';
 
@@ -50,22 +52,33 @@ export async function flow(target, env, opts = {}) {
       return { ok: false, phase: 'auth' };
     }
   } else if (authStatus.cached) {
-    process.stderr.write(
-      `\x1b[2m   auth: cached (verified ${Math.round(authStatus.ageMs / 1000)}s ago)\x1b[0m\n`
-    );
-  }
+  process.stderr.write(
+    `\x1b[2m   auth: cached (verified ${ui.formatAge(authStatus.ageMs)})\x1b[0m\n`
+  );
+}
 
   // ── 3. Target display ────────────────────────────────────────────
-  ui.note(
-    `Worker:       ${c.name || '(unnamed)'}\n` +
-    `Environment:  ${env || 'default'}\n` +
-    `Main:         ${c.main || '(none)'}\n` +
-    `Compat date:  ${c.compatibility_date || '(none)'}\n` +
-    `Config:       ${target.configPath}`,
-    'Deployment target'
-  );
+  const targetLines = [
+    `Worker:       ${c.name || '(unnamed)'}`,
+    `Environment:  ${env || 'default'}`,
+  ];
+  if (c.main) targetLines.push(`Main:         ${c.main}`);
+  if (c.assets?.directory) targetLines.push(`Assets:       ${c.assets.directory}`);
+  if (c.assets?.not_found_handling) targetLines.push(`Routing:      ${c.assets.not_found_handling}`);
+  if (c.assets?.base_path) targetLines.push(`Base path:    ${c.assets.base_path}`);
+  targetLines.push(`Compat date:  ${c.compatibility_date || '(none)'}`);
+  targetLines.push(`Config:       ${target.configPath}`);
+  ui.note(targetLines.join('\n'), 'Deployment target');
 
-  // ── 4. Preflight (cache-aware) ───────────────────────────────────
+  // ── 4. Pre-deploy validation (before any wrangler spawn) ─────────
+  mark('deploy.validate.start');
+  const validation = validate.validateWorkerDeploy(target);
+  mark('deploy.validate.done', validation.ok ? 'ok' : 'fail');
+  if (!validate.render(validation, ui, 'Pre-deploy check')) {
+    return { ok: false, phase: 'validation', errors: validation.errors };
+  }
+
+  // ── 5. Preflight (cache-aware dry-run) ───────────────────────────
   mark('deploy.preflight.start');
   let fromCache = false;
 
@@ -124,7 +137,7 @@ export async function flow(target, env, opts = {}) {
 
   mark('deploy.preflight.done');
 
-  // ── 5. Confirmation (via injected confirmFn) ─────────────────────
+  // ── 6. Confirmation (via injected confirmFn) ─────────────────────
   const expectedName = c.name;
   const confirmed = await confirmFn(expectedName);
   if (!confirmed || confirmed !== expectedName) {
@@ -132,19 +145,35 @@ export async function flow(target, env, opts = {}) {
     return { ok: false, cancelled: true };
   }
 
-  // ── 6. Live deploy (same binary) ─────────────────────────────────
+  // ── 7. Live deploy (same binary) ─────────────────────────────────
   ui.note('Deploying live...', 'Starting');
   mark('deploy.live.start');
   const dep = spawnTask(wr.path, ['deploy', ...envArgs], {
     cwd: target.root,
   }).start();
-  dep.on('data', (chunk) => ui.stream(chunk));
+
+  let streamedUrl = null;
+  let scanBuffer = '';
+  dep.on('data', (chunk) => {
+    ui.stream(chunk);
+    if (!streamedUrl) {
+      scanBuffer += chunk.toString();
+      streamedUrl = urls.extractDeployedUrl(scanBuffer);
+      if (scanBuffer.length > 50000) scanBuffer = scanBuffer.slice(-25000);
+    }
+  });
+
   const depResult = await dep.wait();
   mark('deploy.live.done', `exit=${depResult.code}`);
 
   if (depResult.code === 0) {
-    ui.note('Deployed successfully.', 'Success');
-    return { ok: true };
+    const deployedUrl = streamedUrl || urls.extractDeployedUrl(dep.output());
+    const dashboardUrl = urls.workerDashboardUrl(c.name);
+    const lines = ['Deployed successfully.'];
+    if (deployedUrl) lines.push('', `Live:       ${deployedUrl}`);
+    if (dashboardUrl) lines.push(`Dashboard:  ${dashboardUrl}`);
+    ui.note(lines.join('\n'), 'Success');
+    return { ok: true, deployedUrl, dashboardUrl, name: c.name };
   }
 
   try { dryrun.invalidate(target); } catch { /* ignore */ }

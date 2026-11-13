@@ -2,6 +2,10 @@ import { spawn } from 'node:child_process';
 
 const MAX_BUFFER_CHUNKS = 500;
 
+// Every running task. Used by the SIGINT/SIGTERM handlers in index.mjs
+// to kill children before the parent exits.
+export const activeTasks = new Set();
+
 export class Task {
   constructor(cmd, args, opts = {}) {
     this.cmd = cmd;
@@ -30,6 +34,7 @@ export class Task {
       stdio: this.opts.stdio || ['ignore', 'pipe', 'pipe'],
     });
     this.pid = this.child.pid;
+    activeTasks.add(this);
     this.setState('running');
 
     const onData = (chunk) => {
@@ -42,12 +47,14 @@ export class Task {
     this.child.stderr?.on('data', onData);
 
     this.child.on('error', (err) => {
+      activeTasks.delete(this);
       this.error = err.message;
       this.setState('failed');
       this.emit('exit', { code: -1, error: err.message });
     });
 
     this.child.on('exit', (code, signal) => {
+      activeTasks.delete(this);
       this.exitCode = code;
       this.exitSignal = signal;
       this.setState(signal ? 'killed' : code === 0 ? 'succeeded' : 'failed');

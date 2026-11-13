@@ -96,13 +96,30 @@ export async function flow({ prefillDir } = {}) {
   });
   if (ui.isCancel(name)) return { ok: false, cancelled: true };
 
-  const template = await ui.prompts.select({
-    message: 'Template?',
-    options: [
-      { value: 'minimal', label: 'Minimal (offline, fast, agent-generated scaffold)' },
-      { value: 'cf-create', label: 'Official Cloudflare template (npx create-cloudflare@latest)' },
-    ],
-  });
+  ui.note(
+  'Two ways to start a new project:\n\n' +
+  '  Minimal scaffold\n' +
+  '    Three files written locally by this tool. No network needed.\n' +
+  '    Good for: a quick test, a learning exercise, or when you\n' +
+  '    already know what you want to build.\n\n' +
+  '  Official Cloudflare template\n' +
+  '    Runs `npm create cloudflare@latest` — downloads the templates\n' +
+  '    Cloudflare maintains (Workers, React, Next.js, etc.).\n' +
+  '    Some templates start a local dev server, which does not work\n' +
+  '    on this device. If the installer hangs, press Ctrl-C after\n' +
+  '    the "Created" message appears.\n\n' +
+  'If you have an existing folder of built assets (a dist/ folder,\n' +
+  'for example), use `wrangler-tui adopt` instead of init.',
+  'Choose a scaffold type'
+);
+
+const template = await ui.prompts.select({
+  message: 'Template?',
+  options: [
+    { value: 'minimal', label: 'Minimal scaffold', hint: 'offline, three files, no download' },
+    { value: 'cf-create', label: 'Official Cloudflare template', hint: 'npm create cloudflare@latest' },
+  ],
+});
   if (ui.isCancel(template)) return { ok: false, cancelled: true };
 
   mark('init.prompts.done', `template=${template}`);

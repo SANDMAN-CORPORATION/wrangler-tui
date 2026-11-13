@@ -22,6 +22,7 @@ export const tests = [
       assertEqual(r.code, 0);
       assertContains(r.stdout, 'Usage:');
       assertContains(r.stdout, '--dir');
+      assertContains(r.stdout, 'adopt');
     },
   },
   {
@@ -43,6 +44,7 @@ export const tests = [
       assertEqual(r.code, 1);
       assertContains(r.combined, 'Project not detected');
       assertContains(r.combined, 'wrangler-tui init');
+      assertContains(r.combined, 'wrangler-tui adopt');
       assertContains(r.combined, '--dir');
     },
   },
@@ -78,9 +80,6 @@ export const tests = [
         env: { WRANGLER_TUI_STATE_DIR: ctx.STATE },
         timeout: 5000,
       });
-      // The deploy will attempt a dry-run and possibly prompt.
-      // We only verify project resolution succeeds by the presence of
-      // "Source: explicit" in the output and absence of "resolution failed".
       assertContains(r.combined, 'Source:');
       assertContains(r.combined, 'explicit');
       assertNotContains(r.combined, 'Project resolution failed');
@@ -97,6 +96,16 @@ export const tests = [
     },
   },
   {
+    name: '--name without argument exits 2',
+    fn: async (ctx) => {
+      const r = await run(ctx.CLI, ['deploy', '--name'], {
+        env: { WRANGLER_TUI_STATE_DIR: ctx.STATE },
+      });
+      assertEqual(r.code, 2);
+      assertContains(r.stderr, '--name requires an argument');
+    },
+  },
+  {
     name: 'unexpected positional argument exits 2',
     fn: async (ctx) => {
       const r = await run(ctx.CLI, ['deploy', 'unexpected'], {
@@ -104,6 +113,29 @@ export const tests = [
       });
       assertEqual(r.code, 2);
       assertContains(r.stderr, 'unexpected argument');
+    },
+  },
+  {
+    name: 'third positional rejected for non-pages commands',
+    fn: async (ctx) => {
+      const r = await run(ctx.CLI, ['deploy', 'a', 'b'], {
+        env: { WRANGLER_TUI_STATE_DIR: ctx.STATE },
+      });
+      assertEqual(r.code, 2);
+      assertContains(r.stderr, 'unexpected argument');
+    },
+  },
+  {
+    name: 'pages create accepts positional project name',
+    fn: async (ctx) => {
+      // No fake wrangler here — parser must accept the args before any spawn.
+      // Exit will be nonzero (real wrangler is absent or unauthenticated),
+      // but it must NOT be the parser's exit 2 with "unexpected argument".
+      const r = await run(ctx.CLI, ['pages', 'create', 'my-site'], {
+        env: { WRANGLER_TUI_STATE_DIR: ctx.STATE },
+        timeout: 10000,
+      });
+      assertNotContains(r.stderr, 'unexpected argument');
     },
   },
 ];

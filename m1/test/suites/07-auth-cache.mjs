@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { writeFileSync, readFileSync, existsSync } from 'node:fs';
-import { run, freshDir, cleanupDir, assert, assertEqual, assertContains } from '../helpers.mjs';
+import { run, freshDir, cleanupDir, assert, assertEqual, assertContains, assertNotContains } from '../helpers.mjs';
 
 export const name = 'auth-cache';
 
@@ -150,6 +150,31 @@ export const tests = [
       assert(after - before < 5000, `slide should be small (${after - before}ms)`);
     },
   },
+  {
+  name: 'default TTL: cache hit shows "verified Ns ago"',
+  fn: async () => {
+    setFakeState('in');
+    const env = baseEnv();
+    await run(nodeBin, [indexPath, 'auth'], { env, timeout: 30000 });
+    const r = await run(nodeBin, [indexPath, 'auth'], { env, timeout: 30000 });
+    assertEqual(r.code, 0, 'second auth exit');
+    assertContains(r.combined, 'ago', 'should display "N ago" for cache hit');
+    assertNotContains(r.combined, 'verified now', 'should not show "verified now"');
+  },
+},
+{
+  name: 'WRANGLER_TUI_AUTH_TTL_MS=0 disables cache (forces fresh check)',
+  fn: async () => {
+    setFakeState('in');
+    // Prime the cache with default TTL
+    await run(nodeBin, [indexPath, 'auth'], { env: baseEnv(), timeout: 30000 });
+    // Now with TTL=0, next auth must run fresh (shows "verified now")
+    const envZero = { ...baseEnv(), WRANGLER_TUI_AUTH_TTL_MS: '0' };
+    const r = await run(nodeBin, [indexPath, 'auth'], { env: envZero, timeout: 30000 });
+    assertEqual(r.code, 0, 'auth exit');
+    assertContains(r.combined, 'verified now', 'TTL=0 forces fresh check');
+  },
+},
 ];
 
 tests.push({

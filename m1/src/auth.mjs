@@ -11,7 +11,17 @@ const SIGNUP_URL = 'https://dash.cloudflare.com/sign-up';
 const STATE = process.env.WRANGLER_TUI_STATE_DIR
   || join(process.env.HOME, '.local/state/wrangler-tui');
 const CACHE_FILE = join(STATE, 'auth-status.json');
-const DEFAULT_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_TTL_MS = 15 * 60 * 1000;   // 15 minutes
+const ENV_TTL_NAME = 'WRANGLER_TUI_AUTH_TTL_MS';
+
+function getTtlMs() {
+  const raw = process.env[ENV_TTL_NAME];
+  if (raw != null && raw !== '') {
+    const n = parseInt(raw, 10);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return DEFAULT_TTL_MS;
+}
 
 function cacheKey() {
   const h = createHash('sha256');
@@ -92,12 +102,13 @@ async function freshStatus(bin) {
  *   wranglerBin:  absolute path from resolveWranglerBinary(); falls back to
  *                 resolving from PATH/env when not provided.
  */
-export async function status({ maxAge = DEFAULT_TTL_MS, force = false, wranglerBin } = {}) {
-  if (!force && maxAge > 0) {
+export async function status({ maxAge, force = false, wranglerBin } = {}) {
+  const ttl = maxAge !== undefined ? maxAge : getTtlMs();
+  if (!force && ttl > 0) {
     const cached = readCache();
     if (cached) {
       const age = Date.now() - cached.verifiedAt;
-      if (age <= maxAge) {
+      if (age <= ttl) {
         touchCache();
         mark('auth.status.cached', `age=${Math.round(age / 1000)}s`);
         return { ...cached, cached: true, ageMs: age };
@@ -197,4 +208,24 @@ export async function logout({ wranglerBin } = {}) {
   const post = await status({ force: true, wranglerBin: bin });
   if (post.authenticated) return { ok: false, reason: 'still authenticated after logout' };
   return { ok: true };
+}
+
+/**
+ * Cache-only auth read. Never spawns Wrangler.
+ * Used by the dashboard to render quickly on session start.
+ *   { cached: false }                              — no cache file
+ *   { cached: true, authenticated, email, ageMs, stale }
+ */
+export function peek() {
+  const data = readCache();
+  if (!data) return { cached: false, authenticated: false };
+  const age = Date.now() - data.verifiedAt;
+  return {
+    cached: true,
+    authenticated: !!data.authenticated,
+    email: data.email || null,
+    accounts: data.accounts || [],
+    ageMs: age,
+    stale: age > DEFAULT_TTL_MS,
+  };
 }
