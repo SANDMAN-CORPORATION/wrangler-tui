@@ -31,7 +31,7 @@ export function stage(n, total, label, detail = '') {
 export function formatAge(ms) {
   if (!Number.isFinite(ms) || ms < 0) return 'now';
   const s = Math.round(ms / 1000);
-  if (s < 1) return 'now';
+  if (s < 1) return '<1s ago';
   if (s < 60) return `${s}s ago`;
   const m = Math.round(s / 60);
   if (m < 60) return `${m}m ago`;
