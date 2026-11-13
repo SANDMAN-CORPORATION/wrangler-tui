@@ -70,7 +70,7 @@ footer .sig{margin-top:16px;font-family:var(--mono);font-size:0.8rem}
 <p class="tagline">Deploy Cloudflare Workers from your phone.<br>No flags to memorize. No device codes to copy.</p>
 <div class="badges">
 <span class="badge">MIT License</span>
-<span class="badge">104 tests passing</span>
+<span class="badge">~235 tests passing</span>
 <span class="badge">Node ≥ 22</span>
 <span class="badge">Termux + PRoot</span>
 </div>
@@ -115,31 +115,31 @@ footer .sig{margin-top:16px;font-family:var(--mono);font-size:0.8rem}
 <section class="section">
 <div class="wrap">
 <h2>What It Does</h2>
-<h3>Six commands. All of Cloudflare deployment.</h3>
+<h3>Deploy Workers and Pages. Detect the project. Explain the choice.</h3>
 <div class="grid">
 <div class="card">
-<div class="name">$ wrangler-tui auth</div>
-<p>Opens your browser via Termux, pre-fills the device code, waits for approval, caches the result for 5 minutes.</p>
+<div class="name">$ wrangler-tui</div>
+<p>Interactive session. One dashboard, every action returns to it. Type <code>q</code> to exit.</p>
 </div>
 <div class="card">
-<div class="name">$ wrangler-tui init</div>
-<p>Create a new Worker project — minimal offline scaffold or the official <code>create-cloudflare</code> template.</p>
+<div class="name">$ wrangler-tui inspect</div>
+<p>Read-only analysis of any directory. Detects Workers projects, framework builds, plain static sites, and Pages Functions. Blocks unsupported layouts with the exact fix.</p>
+</div>
+<div class="card">
+<div class="name">$ wrangler-tui adopt</div>
+<p>Make an existing directory deployable. Writes <code>wrangler.jsonc</code> for Workers assets or a marker for Pages. No template download, no prompts when detection is confident.</p>
 </div>
 <div class="card">
 <div class="name">$ wrangler-tui deploy</div>
-<p>Preflight dry-run, visible deployment target, typed worker name confirmation, then live deploy. Exit code is the source of truth.</p>
+<p>Validation → preflight dry-run → visible target → typed confirmation → live deploy → live and dashboard URLs. Exit code is the source of truth.</p>
+</div>
+<div class="card">
+<div class="name">$ wrangler-tui pages deploy</div>
+<p>Deploy a static site to Cloudflare Pages. Reads project name, assets directory, and branch from the adopt marker. No prompts on subsequent deploys.</p>
 </div>
 <div class="card">
 <div class="name">$ wrangler-tui tail</div>
-<p>Stream logs from your deployed Worker. Ctrl-C stops cleanly. No orphaned processes.</p>
-</div>
-<div class="card">
-<div class="name">$ wrangler-tui logout</div>
-<p>Clears the session and verifies with <code>wrangler whoami</code>. Never claims success without proof.</p>
-</div>
-<div class="card">
-<div class="name">$ wrangler-tui test</div>
-<p>Runs 6 checks against a mock project: Node version, Wrangler presence, auth status, project detection, dry-run deploy.</p>
+<p>Stream logs from your deployed Worker. Ctrl-C stops cleanly. Children are killed via SIGTERM-then-SIGKILL if the parent exits abnormally.</p>
 </div>
 </div>
 </div>
@@ -206,10 +206,10 @@ footer .sig{margin-top:16px;font-family:var(--mono);font-size:0.8rem}
 <p>Every tool has limits. These are documented so you are not surprised.</p>
 <div class="limitations">
 <div class="limitation"><strong>Local <code>wrangler dev</code> does not work.</strong><span>The bundled <code>workerd</code> runtime cannot initialize under PRoot's virtual-address configuration. Local development must run on a desktop.</span></div>
-<div class="limitation"><strong>Auth cache TTL is 5 minutes.</strong><span>If you pause for more than 5 minutes between commands, you pay a 25-second re-authentication. This will be tuneable in a future release.</span></div>
+<div class="limitation"><strong>Auth cache TTL is 15 minutes.</strong><span>Configurable via <code>WRANGLER_TUI_AUTH_TTL_MS</code>. Set to <code>0</code> to disable caching entirely.</span></div>
 <div class="limitation"><strong>Wrangler's own startup is 11–18 seconds.</strong><span>Every spawn is expensive through PRoot. Three caches reduce the number of spawns, but each spawn is still slow. This is not fixable in the tool.</span></div>
 <div class="limitation"><strong>No resource management yet.</strong><span>KV, D1, R2, and secrets management are post-MVP. Use <code>wrangler</code> directly for these.</span></div>
-<div class="limitation"><strong>First release, no external users yet.</strong><span>104 tests pass on the author's device. It has not been tested by anyone else. First external use is the next milestone.</span></div>
+<div class="limitation"><strong>First release, no external users yet.</strong><span>~235 tests pass on the author's device. It has not been tested by anyone else. First external use is the next milestone.</span></div>
 </div>
 </div>
 </section>
